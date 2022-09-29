@@ -1,0 +1,182 @@
+package com.hoffnung.fixfb;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.os.SystemProperties;
+import android.util.Log;
+import com.hoffnung.lib_base.c.e;
+
+public class FixFbRebootManager {
+  private static final Object a = new Object();
+  
+  private static FixFbRebootManager b = null;
+  
+  private static String e;
+  
+  private static String f;
+  
+  private Context c;
+  
+  private SharedPreferences d;
+  
+  private FixFbRebootManager(Context paramContext) {
+    this.c = paramContext;
+  }
+  
+  public static FixFbRebootManager a(Context paramContext) {
+    if (b == null)
+      synchronized (a) {
+        if (b == null) {
+          FixFbRebootManager fixFbRebootManager = new FixFbRebootManager();
+          this(paramContext);
+          b = fixFbRebootManager;
+        } 
+      }  
+    return b;
+  }
+  
+  private boolean b() {
+    boolean bool2;
+    boolean bool1 = false;
+    try {
+      PackageInfo packageInfo = this.c.getPackageManager().getPackageInfo(this.c.getPackageName(), 0);
+      bool2 = bool1;
+      if (packageInfo != null)
+        bool2 = packageInfo.applicationInfo.sourceDir.contains("data/app"); 
+    } catch (android.content.pm.PackageManager.NameNotFoundException nameNotFoundException) {
+      StringBuilder stringBuilder1 = new StringBuilder();
+      stringBuilder1.append("appMainCreate: judge sourceDir e: ");
+      stringBuilder1.append(nameNotFoundException.getMessage());
+      Log.w("JniTag-RebootManager", stringBuilder1.toString());
+      bool2 = bool1;
+    } 
+    StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append("appMainCreate: is in DataDir = ");
+    stringBuilder.append(bool2);
+    Log.i("JniTag-RebootManager", stringBuilder.toString());
+    return bool2;
+  }
+  
+  private void c() {
+    this.d = this.c.createDeviceProtectedStorageContext().getSharedPreferences("fb_key", 0);
+    e = this.d.getString("fb_switch_value", "1");
+    f = this.d.getString("fb_count_value", "20");
+    StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append("DE getSpValues: mSwitch = ");
+    stringBuilder.append(e);
+    stringBuilder.append(", mCount = ");
+    stringBuilder.append(f);
+    Log.i("JniTag-RebootManager", stringBuilder.toString());
+  }
+  
+  private void d() {
+    String str;
+    byte b2;
+    int i = "0".equals(e) ^ true;
+    StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append("callFillSignal: mSwitch = ");
+    stringBuilder.append(e);
+    stringBuilder.append(", mCount = ");
+    stringBuilder.append(f);
+    stringBuilder.append(", swtEnable = ");
+    stringBuilder.append(i);
+    Log.i("JniTag-RebootManager", stringBuilder.toString());
+    if (i == 0)
+      return; 
+    byte b1 = 20;
+    try {
+      if (f != null) {
+        b2 = Integer.parseInt(f);
+      } else {
+        b2 = 20;
+      } 
+    } catch (NumberFormatException numberFormatException) {
+      StringBuilder stringBuilder1 = new StringBuilder();
+      stringBuilder1.append("callFillSignal parseInt: e = ");
+      stringBuilder1.append(numberFormatException.getMessage());
+      Log.w("JniTag-RebootManager", stringBuilder1.toString());
+      b2 = 20;
+    } 
+    stringBuilder = new StringBuilder();
+    stringBuilder.append("callFillSignal: finalCount = ");
+    stringBuilder.append(b2);
+    Log.i("JniTag-RebootManager", stringBuilder.toString());
+    if (b2 > 60 || b2 < 10) {
+      Log.w("JniTag-RebootManager", "callFillSignal: finalCount illegal, reset is :20");
+      b2 = b1;
+    } 
+    boolean bool = e.a(this.c);
+    SharedPreferences.Editor editor = this.d.edit();
+    if (bool) {
+      str = "execute_h";
+    } else {
+      str = "execute_s";
+    } 
+    try {
+      editor.putString("fb_execute_key", str);
+      long l = System.currentTimeMillis();
+      str = fillSignalToNative(b2);
+      l = System.currentTimeMillis() - l;
+      StringBuilder stringBuilder1 = new StringBuilder();
+      this();
+      stringBuilder1.append("fromNativeStr = ");
+      stringBuilder1.append(str);
+      stringBuilder1.append(", costTime = ");
+      stringBuilder1.append(l);
+      stringBuilder1.append("ms");
+      Log.w("JniTag-RebootManager", stringBuilder1.toString());
+      if (bool) {
+        str = "success_h: ";
+      } else {
+        str = "success_s: ";
+      } 
+      stringBuilder1 = new StringBuilder();
+      this();
+      stringBuilder1.append(str);
+      stringBuilder1.append(l);
+      stringBuilder1.append("ms");
+      editor.putString("fb_cost_time_key", stringBuilder1.toString());
+    } catch (Exception exception) {
+      String str1;
+      StringBuilder stringBuilder1 = new StringBuilder();
+      this();
+      stringBuilder1.append("callFillSignal fillSignalToNative: e = ");
+      stringBuilder1.append(exception.getMessage());
+      Log.w("JniTag-RebootManager", stringBuilder1.toString());
+      if (bool) {
+        str1 = "fail_h: ";
+      } else {
+        str1 = "fail_s: ";
+      } 
+      StringBuilder stringBuilder2 = new StringBuilder();
+      this();
+      stringBuilder2.append(str1);
+      stringBuilder2.append(exception.getMessage());
+      editor.putString("fb_exception_key", stringBuilder2.toString());
+    } finally {}
+    editor.apply();
+  }
+  
+  public void a() {
+    String str = SystemProperties.get("config.tp.fb");
+    StringBuilder stringBuilder = new StringBuilder();
+    stringBuilder.append("fixFbReboot isExe: ");
+    stringBuilder.append(str);
+    Log.i("JniTag-RebootManager", stringBuilder.toString());
+    if (!"1".equals(str))
+      try {
+        SystemProperties.set("config.tp.fb", "1");
+        if (b()) {
+          c();
+          d();
+        } 
+      } catch (Exception exception) {
+        Log.d("JniTag-RebootManager", "not support set!!!");
+        return;
+      }  
+  }
+  
+  public native String fillSignalToNative(int paramInt);
+}
